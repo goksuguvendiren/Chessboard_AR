@@ -67,34 +67,15 @@ namespace cc
             return captured_frames;
         }
 
-        std::pair<cv::Mat, float> DrawChessboardPoints(const cv::Mat& frame, const cv::Size& size)
+        cv::Mat DrawChessboardPoints(const cv::Mat& frame, const cv::Size& size, const std::vector<cv::Point2f>& corners)
         {
-            auto beg = std::chrono::system_clock::now();
             cv::Mat gray;
-            std::vector<cv::Point2f> corners;
-            if (cv::findChessboardCorners(frame, size, corners, cv::CALIB_CB_FAST_CHECK))
-            {
-                cv::cvtColor(frame, gray, cv::COLOR_RGB2GRAY);
-                cv::cornerSubPix(gray, corners, cv::Size(11, 11), cv::Size(-1, -1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 50, 0.1));
-                drawChessboardCorners(frame, size, cv::Mat(corners), true);
-            }
+            cv::cvtColor(frame, gray, cv::COLOR_RGB2GRAY);
+            cv::cornerSubPix(gray, corners, cv::Size(11, 11), cv::Size(-1, -1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 50, 0.1));
+            drawChessboardCorners(frame, size, cv::Mat(corners), true);
 
-            auto end = std::chrono::system_clock::now();
-            auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg).count();
-
-            return {frame, time};
+            return frame;
         }
-
-//        cv::Mat DrawChessboardPoints(const cv::Mat& frame, const cv::Size& size, const std::vector<cv::Point2f>& corners)
-//        {
-//
-//            cv::Mat gray;
-//            cv::cvtColor(frame, gray, cv::COLOR_RGB2GRAY);
-//            cv::cornerSubPix(gray, corners, cv::Size(11, 11), cv::Size(-1, -1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 50, 0.1));
-//            drawChessboardCorners(frame, size, cv::Mat(corners), true);
-//
-//            return frame;
-//        }
 
         std::experimental::optional<std::vector<cv::Point2f>> FindChessboardPoints(const cv::Mat& frame, const cv::Size& size)
         {
@@ -106,6 +87,5 @@ namespace cc
 
             return std::experimental::nullopt;
         }
-
     };
 }

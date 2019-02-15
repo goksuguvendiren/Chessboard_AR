@@ -34,6 +34,7 @@ namespace cc
         camera(const cv::Mat& intrinsic, const cv::Mat& distortion_coeffs, const std::vector<cv::Mat>& rotation, const std::vector<cv::Mat>& translation,
                const cv::Size& size);
         camera(const cc::calibrator& calibrator);
+        camera(const std::string& settings);
 
         void Serialize(const nlohmann::json& camera_params);
         nlohmann::json Deserialize() const;
