@@ -3,12 +3,15 @@
 #pragma once
 #include <opencv2/opencv.hpp>
 #include <boost/filesystem.hpp>
+#include <experimental/optional>
+#include <window.hpp>
+#include <program.hpp>
 
 namespace cc
 {
 	namespace utils
 	{
-        std::vector<cv::Mat> GetImagesFromFolder(const std::string& p)
+        inline std::vector<cv::Mat> GetImagesFromFolder(const std::string& p)
         {
             namespace fs = boost::filesystem;
             fs::path path(p);
@@ -35,7 +38,7 @@ namespace cc
             return images;
         }
 
-        std::vector<cv::Mat> GetImagesFromCamera(const std::string &folder_path)
+        inline std::vector<cv::Mat> GetImagesFromCamera(const std::string &folder_path)
         {
             cv::VideoCapture video(0);
             if (!video.isOpened())
@@ -67,7 +70,7 @@ namespace cc
             return captured_frames;
         }
 
-        cv::Mat DrawChessboardPoints(const cv::Mat& frame, const cv::Size& size, const std::vector<cv::Point2f>& corners)
+        inline cv::Mat DrawChessboardPoints(const cv::Mat& frame, const cv::Size& size, const std::vector<cv::Point2f>& corners)
         {
             cv::Mat gray;
             cv::cvtColor(frame, gray, cv::COLOR_RGB2GRAY);
@@ -77,7 +80,7 @@ namespace cc
             return frame;
         }
 
-        std::experimental::optional<std::vector<cv::Point2f>> FindChessboardPoints(const cv::Mat& frame, const cv::Size& size)
+        inline std::experimental::optional<std::vector<cv::Point2f>> FindChessboardPoints(const cv::Mat& frame, const cv::Size& size)
         {
             std::vector<cv::Point2f> corners;
             if (cv::findChessboardCorners(frame, size, corners, cv::CALIB_CB_FAST_CHECK))
@@ -87,5 +90,41 @@ namespace cc
 
             return std::experimental::nullopt;
         }
+
+//        inline std::string read_file(const std::string& filename)
+//        {
+//            std::ifstream file;
+//            file.open(filename);
+//
+//            std::stringstream stream;
+//            stream << file.rdbuf();
+//
+//            std::string result = stream.str();
+//
+//            return result;
+//        }
+
+        class key_handlers
+        {
+            std::map<int, std::function<void()>> functions;
+
+        public:
+
+            void Add(int key, std::function<void()> function)
+            {
+                auto r = functions.emplace(key, std::move(function));
+            }
+
+            void operator()(const grt::window& w) const
+            {
+                for (auto& function : functions)
+                {
+                    if (glfwGetKey(w.Get(), function.first) == GLFW_PRESS)
+                    {
+                        function.second();
+                    }
+                }
+            }
+        };
     };
 }
