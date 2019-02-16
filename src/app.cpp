@@ -24,12 +24,6 @@ void grt::app::SetCurrentContext(const grt::window &window)
 void grt::app::Render()
 {
     glfw.SwapBuffers(window);
-    glfw.PollEvents();
-
-    window.CallCallbacks();
-
-    glClearColor(0.f, 0.f, 0.f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void grt::app::SetShouldClose(bool close)

@@ -13,6 +13,6 @@ out vec4 FragColor;
 
 void main()
 {
-    vec2 uv = gl_FragCoord.xy / vec2(1280, 720);
+    vec2 uv = gl_FragCoord.xy / vec2(960, 540);
     FragColor = vec4(texture(tex, uv));
 }

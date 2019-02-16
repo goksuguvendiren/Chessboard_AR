@@ -5,8 +5,6 @@ uniform vec3 light_intensity;
 uniform vec3 light_position;
 uniform vec3 camera_position;
 
-uniform sampler2D tex;
-
 in vec4 normal;
 in vec3 world_pos;
 out vec4 FragColor;

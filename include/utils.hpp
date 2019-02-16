@@ -27,17 +27,18 @@ namespace cc
 
         inline glm::mat4 mat2mat4(const cv::Mat& mat)
         {
-            glm::mat4 result;
+            using namespace glm;
 
+            mat4 x;
             for (int i = 0; i < 4; ++i)
             {
                 for (int j = 0; j < 4; ++j)
                 {
-                    result[i][j] = mat.at<double>(i, j);
+                    x[i][j] = mat.at<double>(i, j);
                 }
             }
 
-            return result;
+            return x;
         }
 
         inline std::vector<cv::Mat> GetImagesFromFolder(const std::string& p)
@@ -114,6 +115,8 @@ namespace cc
             std::vector<cv::Point2f> corners;
             if (cv::findChessboardCorners(frame, size, corners, cv::CALIB_CB_FAST_CHECK))
             {
+                cornerSubPix(frame, corners, cv::Size(11, 11), cv::Size(-1, -1),
+                             cv::TermCriteria(cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 150, 0.00001));
                 return corners;
             }
 

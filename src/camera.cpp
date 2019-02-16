@@ -20,12 +20,19 @@ cc::camera::camera(const cv::Mat& intr, const cv::Mat& distortion_coefficients, 
     intr.copyTo(intrinsic);
     distortion_coefficients.copyTo(distortion_coeffs);
 
+    std::cout << intrinsic << '\n';
+    std::cout << distortion_coeffs << '\n';
+
     cv::calibrationMatrixValues(intrinsic, size, 0, 0, fov_horizontal, fov_vertical, focal_length, principal_point, aspect_ratio);
+
+    cam.set(cv::CAP_PROP_FRAME_WIDTH, 960);
+    cam.set(cv::CAP_PROP_FRAME_HEIGHT, 540);
 }
 
 cc::camera::camera(const cc::calibrator &calibrator) : camera(calibrator.Intrinsic(), calibrator.DistortionCoeffs(), calibrator.RotationVectors(),
         calibrator.TranslationVectors(), calibrator.Size())
-{}
+{
+}
 
 cc::camera::camera(const std::string &settings)
 {

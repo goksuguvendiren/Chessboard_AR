@@ -30,6 +30,7 @@ cc::calibrator::calibrator(const std::vector<cv::Mat>& images, const cv::Size& b
     cv::calibrateCamera(coordinates, corners, images[0].size(), intrinsic, distortion_coeffs, rotation_vectors, translation_vectors);
 
     std::cout << intrinsic << '\n';
+    std::cout << distortion_coeffs << '\n';
     size = images[0].size();
 }
 
@@ -41,7 +42,9 @@ std::pair<std::vector<cv::Point2f>, std::vector<cv::Point3f>> cc::calibrator::Ge
 //    cv::imshow("input image", image);
 //    cv::waitKey(0);
 
-    auto patternFound = cv::findChessboardCorners(image, board_size, corners);
+    cv::Mat gray_image;
+    cv::cvtColor(image, gray_image, cv::COLOR_RGB2GRAY);
+    auto patternFound = cv::findChessboardCorners(gray_image, board_size, corners);
     if (!patternFound)
     {
         std::cerr << "could not find the points\n";
@@ -56,10 +59,8 @@ std::pair<std::vector<cv::Point2f>, std::vector<cv::Point3f>> cc::calibrator::Ge
         }
     }
 
-    cv::Mat gray_image;
-    cv::cvtColor(image, gray_image, cv::COLOR_RGB2GRAY);
     cv::cornerSubPix(gray_image, corners, {11, 11}, {-1, -1}, cv::TermCriteria(cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 50, 0.0001));
-    cv::drawChessboardCorners(image, board_size, corners, patternFound);
+    //cv::drawChessboardCorners(image, board_size, corners, patternFound);
 
 //    cv::Mat image = cv::imread(p + "");
 //    cv::imshow("chessboard corners", image);

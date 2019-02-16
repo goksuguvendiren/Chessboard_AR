@@ -15,6 +15,7 @@
 #include <app.hpp>
 #include <model.hpp>
 #include <transform.hpp>
+#include <chrono>
 
 cc::camera CheckNecessities()
 {
@@ -99,7 +100,8 @@ cc::camera InitializeCamera(int argc, const char** argv)
 
     if (argc == 1)
     {
-        captured_frames = cc::utils::GetImagesFromCamera("/Users/goksu/Documents/UCSB/2018-2019/Winter/CS291A-MR-AR/ass2/dataset/generated/");
+        captured_frames =
+                cc::utils::GetImagesFromFolder("/home/goksu/calib");
     }
     else
     {
@@ -112,6 +114,8 @@ cc::camera InitializeCamera(int argc, const char** argv)
 
     auto undistorted_image = calibrator.Calibrate(captured_frames[0]);
     auto error = calibrator.CalculateError();
+
+    std::cout << error << '\n';
 
     cc::camera camera(calibrator);
     camera.SaveSettings("/Users/goksu/Documents/UCSB/2018-2019/Winter/CS291A-MR-AR/ass2/camera/", "cameraparams.json");
@@ -158,7 +162,7 @@ int main(int argc, const char** argv)
     std::cout << frame.cols << ", " << frame.rows << '\n';
 
     grt::app app(0, 0);
-    auto& window = app.CreateWindow(1280, 720, "CC");
+    auto& window = app.CreateWindow(960, 540, "CC");
     app.SetCurrentContext(window);
     app.Initialize();
 
@@ -180,9 +184,9 @@ int main(int argc, const char** argv)
         app.SetShouldClose(true);
     });
 
-    grt::vertex_shader   vertex_shader(read_file("/Users/goksu/Documents/UCSB/2018-2019/Winter/CS291A-MR-AR/ass2/shaders/basic_vert.glsl"));
-    grt::fragment_shader texture_frag(read_file("/Users/goksu/Documents/UCSB/2018-2019/Winter/CS291A-MR-AR/ass2/shaders/texture_frag.glsl"));
-    grt::fragment_shader teapot_frag(read_file("/Users/goksu/Documents/UCSB/2018-2019/Winter/CS291A-MR-AR/ass2/shaders/basic_frag.glsl"));
+    grt::vertex_shader   vertex_shader(read_file("../shaders/basic_vert.glsl"));
+    grt::fragment_shader texture_frag(read_file("../shaders/texture_frag.glsl"));
+    grt::fragment_shader teapot_frag(read_file("../shaders/basic_frag.glsl"));
 
     auto texture_program = initializeShaders(vertex_shader, texture_frag);
     auto shader_program = initializeShaders(vertex_shader, teapot_frag);
@@ -198,17 +202,20 @@ int main(int argc, const char** argv)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    auto proj = glm::perspective<float>(glm::radians(camera.Fov()), 1280/720.f, 0.1, 100);
+    const auto proj = glm::perspective<float>(glm::radians(camera.Fov()), 960/540.f, 1, 100);
     auto view = glm::lookAt<float>(glm::vec3(0,0, -10), glm::vec3(0,0,0), glm::vec3(0, 1, 0));
 
     bool done = false;
     cv::Mat t;
     cv::Mat r;
+    auto object_points = cc::utils::GetObjectPoints(board_size);
+
+    glm::mat4 view_proj = proj * view;
+    bool have = false;
+    glm::vec3 camera_pos;
 
     while(!glfwWindowShouldClose(window.Get()))
     {
-        frame = camera.GetFrame();
-
         auto beg = std::chrono::system_clock::now();
         frame = camera.GetFrame();
 
@@ -219,26 +226,14 @@ int main(int argc, const char** argv)
 
         auto points = cc::utils::FindChessboardPoints(equalized, board_size);
 
-        glm::mat4 view_proj = proj * view;
-        glm::vec3 camera_pos;
 
         if (points)
         {
-//            frame = cc::utils::DrawChessboardPoints(frame, board_size, *points);
-            if (!done)
-            {
-                auto [t_, r_] = camera.GetTRMatrices(*points, board_size);
-                t_.copyTo(t);
-                r_.copyTo(r);
-                done = true;
-            }
-
-            if (t.empty() || r.empty())
+            if (!cv::solvePnP(object_points, *points, camera.Intrinsic(), camera.DistortCoeffs(), r, t))
             {
                 continue;
             }
-
-            std::cout << t << '\n' << r << "\n\n";
+            std::cout << r << "\n" << t << "\n\n";
 
             cv::Mat rot;
             cv::Rodrigues(r, rot);
@@ -254,54 +249,59 @@ int main(int argc, const char** argv)
             }
             viewMatrix.at<double>(3, 3) = 1.0f;
 
-            cv::Mat gl_vm = cv::Mat::zeros(4, 4, CV_64F);
-
-            gl_vm.at<double>(0, 0) = 1.0f;
-            gl_vm.at<double>(1, 1) = -1.0f;
-            gl_vm.at<double>(2, 2) = -1.0f;
-            gl_vm.at<double>(3, 3) = 1.0f;
-            viewMatrix = gl_vm * viewMatrix;
+            cv::Mat cvToGl = cv::Mat::zeros(4, 4, CV_64F);
+            cvToGl.at<double>(0, 0) = 1.0f;
+            cvToGl.at<double>(1, 1) = -1.0f;
+            cvToGl.at<double>(2, 2) = -1.0f;
+            cvToGl.at<double>(3, 3) = 1.0f;
+            viewMatrix = cvToGl * viewMatrix;
 
             cv::Mat glViewMatrix = cv::Mat::zeros(4, 4, CV_64F);
             cv::transpose(viewMatrix, glViewMatrix);
 
             glm::mat4 m = cc::utils::mat2mat4(glViewMatrix);
             camera_pos = m * glm::vec4(0, 0, 0, 1);
-            view_proj = proj * m;
 
             auto world_points = cc::utils::GetObjectPoints(board_size);
 
             std::vector<cv::Point2f> projected_points;
             cv::projectPoints(world_points, r, t, camera.Intrinsic(), camera.DistortCoeffs(), projected_points);
             frame = cc::utils::DrawChessboardPoints(frame, board_size, projected_points);
+            view_proj = proj * m;
+            have = true;
         }
 
+        do_render:
+
+        glViewport(0, 0, 960, 540);
+
         cv::flip(frame, frame, 0);
-
-        glViewport(0, 0, 1280, 720);
-        glUseProgram(texture_program.GetProgram());
-
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, frame.cols, frame.rows, 0, GL_BGR, GL_UNSIGNED_BYTE, frame.ptr());
 
+        glfwMakeContextCurrent(window.Get());
+        glfwPollEvents();
+
+        window.CallCallbacks();
+
+        glClearColor(0.2f, 0.3f, 0.3f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glClearColor(0.2f, 0.2f, 0.2f, 1.f);
+        glEnable(GL_DEPTH_TEST);
 
-        texture_program.SetVariable("view_proj", view_proj);
-        texture_program.SetVariable("transform", quad_transform.Data());
-        renderQuad();
+//        texture_program.SetVariable("view_proj", view_proj);
+//        texture_program.SetVariable("tex", 0);
+//        texture_program.SetVariable("transform", quad_transform.Data());
+//        renderQuad();
 
-//        glUseProgram(shader_program.GetProgram());
-//
-//        shader_program.SetVariable("view_proj", view_proj);
-//        shader_program.SetVariable("transform", teapot_transform.Data());
-//        shader_program.SetVariable("obj_color", teapot.GetColor());
-//        shader_program.SetVariable("camera_position", camera_pos);
-//        shader_program.SetVariable("light_intensity", light.GetIntensity());
-//        shader_program.SetVariable("light_position", light_transform.GetPosition());
-//
-//        teapot.Draw();
+        shader_program.SetVariable("view_proj", view_proj);
+        shader_program.SetVariable("transform", teapot_transform.Data());
+        shader_program.SetVariable("obj_color", teapot.GetColor());
+        shader_program.SetVariable("camera_position", camera_pos);
+        shader_program.SetVariable("light_intensity", light.GetIntensity());
+        shader_program.SetVariable("light_position", light_transform.GetPosition());
+
+        teapot.Draw();
 
         auto end = std::chrono::system_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg).count();

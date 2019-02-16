@@ -7,6 +7,8 @@
 
 #include <iostream>
 
+#include <algorithm>
+
 grt::mesh::mesh(std::vector<grt::vertex> vert, std::vector<unsigned int> ind, bool center) : vertices(std::move(vert)), indices(std::move(ind)),
                                                                                 transformation(glm::mat4(1.0f))
 {

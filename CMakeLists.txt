@@ -22,8 +22,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/modules/)
 
 add_executable(cameracalib ${SOURCE_FILES})
 
+find_package(X11 REQUIRED)
 
-target_link_libraries(cameracalib PUBLIC Boost::boost Boost::filesystem)
+target_link_libraries(cameracalib PUBLIC Boost::boost Boost::filesystem dl)
+target_link_libraries(cameracalib PUBLIC dl m "${X11_Xrandr_LIB}" "${X11_Xxf86vm_LIB}" "${X11_Xcursor_LIB}" "${X11_Xinerama_LIB}" "${CMAKE_THREAD_LIBS_INIT}" rt Xi X11 GL GLU)
 
 target_link_libraries(cameracalib PUBLIC ${OpenCV_LIBS})
 target_compile_features(cameracalib PUBLIC cxx_std_17)
