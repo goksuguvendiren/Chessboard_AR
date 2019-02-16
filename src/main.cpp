@@ -166,18 +166,34 @@ int main(int argc, const char** argv)
     app.SetCurrentContext(window);
     app.Initialize();
 
-    grt::point_light light({100.0f, 100.0f, 100.0f});
-    grt::model teapot("../models/teapot/teapot.obj");
+    grt::point_light light({25.0f, 25.0f, 25.0f});
+    grt::model teapot("../models/sphere/sphere.obj");
 
     grt::transform teapot_transform;
+    teapot_transform.Rotate(-90, {1, 0, 0});
+    teapot_transform.Translate({2, 3, -1.5});
     grt::transform quad_transform;
     grt::transform light_transform;
 
-    light_transform.Translate(glm::vec3{5.0, 5.0, -2.0});
-    quad_transform.Scale({100, 100, 10});
+    light_transform.Translate(glm::vec3{5.0, 5.0, -3.0});
+    quad_transform.Scale({10000, 10000, 1});
     quad_transform.Translate({0, 0, 10});
 
     teapot.SetColor({160/255.f, 82/255.f, 45/255.f});
+
+    std::vector<grt::transform> teapot_transforms;
+    for (int i = 0; i < 5; i++)
+    {
+        for (int j = 0; j < 7; j++)
+        {
+            grt::transform transform;
+            transform.Rotate(-90, {1, 0, 0});
+            transform.Translate({i - 0.3, j, -0.3});
+            transform.Scale({0.3, 0.3, 0.3});
+
+            teapot_transforms.push_back(transform);
+        }
+    }
 
     app.AddHandler(GLFW_KEY_ESCAPE, [&]
     {
@@ -202,8 +218,10 @@ int main(int argc, const char** argv)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    const auto proj = glm::perspective<float>(glm::radians(camera.Fov()), 960/540.f, 1, 100);
+    const auto proj = glm::perspective<float>(glm::radians(camera.Fov()), 960/540.f, 0.1, 1000);
     auto view = glm::lookAt<float>(glm::vec3(0,0, -10), glm::vec3(0,0,0), glm::vec3(0, 1, 0));
+
+    auto quad_vp = proj * view;
 
     bool done = false;
     cv::Mat t;
@@ -231,7 +249,7 @@ int main(int argc, const char** argv)
         {
             if (!cv::solvePnP(object_points, *points, camera.Intrinsic(), camera.DistortCoeffs(), r, t))
             {
-                continue;
+                goto do_render;
             }
             std::cout << r << "\n" << t << "\n\n";
 
@@ -262,11 +280,6 @@ int main(int argc, const char** argv)
             glm::mat4 m = cc::utils::mat2mat4(glViewMatrix);
             camera_pos = m * glm::vec4(0, 0, 0, 1);
 
-            auto world_points = cc::utils::GetObjectPoints(board_size);
-
-            std::vector<cv::Point2f> projected_points;
-            cv::projectPoints(world_points, r, t, camera.Intrinsic(), camera.DistortCoeffs(), projected_points);
-            frame = cc::utils::DrawChessboardPoints(frame, board_size, projected_points);
             view_proj = proj * m;
             have = true;
         }
@@ -289,19 +302,24 @@ int main(int argc, const char** argv)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
 
-//        texture_program.SetVariable("view_proj", view_proj);
-//        texture_program.SetVariable("tex", 0);
-//        texture_program.SetVariable("transform", quad_transform.Data());
-//        renderQuad();
+        texture_program.SetVariable("view_proj", quad_vp);
+        texture_program.SetVariable("tex", 0);
+        texture_program.SetVariable("transform", quad_transform.Data());
+        renderQuad();
+
+        glClear(GL_DEPTH_BUFFER_BIT);
 
         shader_program.SetVariable("view_proj", view_proj);
-        shader_program.SetVariable("transform", teapot_transform.Data());
         shader_program.SetVariable("obj_color", teapot.GetColor());
         shader_program.SetVariable("camera_position", camera_pos);
         shader_program.SetVariable("light_intensity", light.GetIntensity());
         shader_program.SetVariable("light_position", light_transform.GetPosition());
 
-        teapot.Draw();
+        for (auto& tr : teapot_transforms)
+        {
+            shader_program.SetVariable("transform", tr.Data());
+            teapot.Draw();
+        }
 
         auto end = std::chrono::system_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg).count();
