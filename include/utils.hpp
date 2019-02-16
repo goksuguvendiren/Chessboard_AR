@@ -10,7 +10,36 @@
 namespace cc
 {
 	namespace utils
-	{
+    {
+	    inline std::vector<cv::Point3f> GetObjectPoints(const cv::Size& board_size)
+        {
+            std::vector<cv::Point3f> object_points;
+            for (int i = 0; i < board_size.height; ++i)
+            {
+                for (int j = 0; j < board_size.width; ++j)
+                {
+                    object_points.emplace_back(cv::Point3f(j, i, 0.f));
+                }
+            }
+
+            return object_points;
+        }
+
+        inline glm::mat4 mat2mat4(const cv::Mat& mat)
+        {
+            glm::mat4 result;
+
+            for (int i = 0; i < 4; ++i)
+            {
+                for (int j = 0; j < 4; ++j)
+                {
+                    result[i][j] = mat.at<double>(i, j);
+                }
+            }
+
+            return result;
+        }
+
         inline std::vector<cv::Mat> GetImagesFromFolder(const std::string& p)
         {
             namespace fs = boost::filesystem;

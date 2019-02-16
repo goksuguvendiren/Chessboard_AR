@@ -9,8 +9,12 @@
 #include <utils.hpp>
 #include <camera.hpp>
 #include <vertex_shader.hpp>
+#include <glm/glm.hpp>
+#include "glm/gtc/matrix_transform.hpp"
 
 #include <app.hpp>
+#include <model.hpp>
+#include <transform.hpp>
 
 cc::camera CheckNecessities()
 {
@@ -158,16 +162,31 @@ int main(int argc, const char** argv)
     app.SetCurrentContext(window);
     app.Initialize();
 
+    grt::point_light light({100.0f, 100.0f, 100.0f});
+    grt::model teapot("../models/teapot/teapot.obj");
+
+    grt::transform teapot_transform;
+    grt::transform quad_transform;
+    grt::transform light_transform;
+
+    light_transform.Translate(glm::vec3{5.0, 5.0, -2.0});
+    quad_transform.Scale({100, 100, 10});
+    quad_transform.Translate({0, 0, 10});
+
+    teapot.SetColor({160/255.f, 82/255.f, 45/255.f});
+
     app.AddHandler(GLFW_KEY_ESCAPE, [&]
     {
         app.SetShouldClose(true);
     });
 
     grt::vertex_shader   vertex_shader(read_file("/Users/goksu/Documents/UCSB/2018-2019/Winter/CS291A-MR-AR/ass2/shaders/basic_vert.glsl"));
-    grt::fragment_shader fragment_shader(read_file("/Users/goksu/Documents/UCSB/2018-2019/Winter/CS291A-MR-AR/ass2/shaders/basic_frag.glsl"));
+    grt::fragment_shader texture_frag(read_file("/Users/goksu/Documents/UCSB/2018-2019/Winter/CS291A-MR-AR/ass2/shaders/texture_frag.glsl"));
+    grt::fragment_shader teapot_frag(read_file("/Users/goksu/Documents/UCSB/2018-2019/Winter/CS291A-MR-AR/ass2/shaders/basic_frag.glsl"));
 
-    auto shader_program = initializeShaders(vertex_shader, fragment_shader);
-    shader_program.SetVariable("tex", 0);
+    auto texture_program = initializeShaders(vertex_shader, texture_frag);
+    auto shader_program = initializeShaders(vertex_shader, teapot_frag);
+    texture_program.SetVariable("tex", 0);
 
     unsigned int texture;
     glGenTextures(1, &texture);
@@ -179,37 +198,116 @@ int main(int argc, const char** argv)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+    auto proj = glm::perspective<float>(glm::radians(camera.Fov()), 1280/720.f, 0.1, 100);
+    auto view = glm::lookAt<float>(glm::vec3(0,0, -10), glm::vec3(0,0,0), glm::vec3(0, 1, 0));
+
+    bool done = false;
+    cv::Mat t;
+    cv::Mat r;
+
     while(!glfwWindowShouldClose(window.Get()))
     {
-        glViewport(0, 0, 1280, 720);
-
-        glUseProgram(shader_program.GetProgram());
         frame = camera.GetFrame();
+
+        auto beg = std::chrono::system_clock::now();
+        frame = camera.GetFrame();
+
+        cv::Mat equalized;
+        cv::Mat gray;
+        cv::cvtColor(frame, gray, cv::COLOR_RGB2GRAY);
+        cv::equalizeHist(gray, equalized);
+
+        auto points = cc::utils::FindChessboardPoints(equalized, board_size);
+
+        glm::mat4 view_proj = proj * view;
+        glm::vec3 camera_pos;
+
+        if (points)
+        {
+//            frame = cc::utils::DrawChessboardPoints(frame, board_size, *points);
+            if (!done)
+            {
+                auto [t_, r_] = camera.GetTRMatrices(*points, board_size);
+                t_.copyTo(t);
+                r_.copyTo(r);
+                done = true;
+            }
+
+            if (t.empty() || r.empty())
+            {
+                continue;
+            }
+
+            std::cout << t << '\n' << r << "\n\n";
+
+            cv::Mat rot;
+            cv::Rodrigues(r, rot);
+            cv::Mat viewMatrix(4, 4, CV_64F);
+
+            for(int row=0; row<3; ++row)
+            {
+                for(int col=0; col<3; ++col)
+                {
+                    viewMatrix.at<double>(row, col) = rot.at<double>(row, col);
+                }
+                viewMatrix.at<double>(row, 3) = t.at<double>(row, 0);
+            }
+            viewMatrix.at<double>(3, 3) = 1.0f;
+
+            cv::Mat gl_vm = cv::Mat::zeros(4, 4, CV_64F);
+
+            gl_vm.at<double>(0, 0) = 1.0f;
+            gl_vm.at<double>(1, 1) = -1.0f;
+            gl_vm.at<double>(2, 2) = -1.0f;
+            gl_vm.at<double>(3, 3) = 1.0f;
+            viewMatrix = gl_vm * viewMatrix;
+
+            cv::Mat glViewMatrix = cv::Mat::zeros(4, 4, CV_64F);
+            cv::transpose(viewMatrix, glViewMatrix);
+
+            glm::mat4 m = cc::utils::mat2mat4(glViewMatrix);
+            camera_pos = m * glm::vec4(0, 0, 0, 1);
+            view_proj = proj * m;
+
+            auto world_points = cc::utils::GetObjectPoints(board_size);
+
+            std::vector<cv::Point2f> projected_points;
+            cv::projectPoints(world_points, r, t, camera.Intrinsic(), camera.DistortCoeffs(), projected_points);
+            frame = cc::utils::DrawChessboardPoints(frame, board_size, projected_points);
+        }
+
         cv::flip(frame, frame, 0);
+
+        glViewport(0, 0, 1280, 720);
+        glUseProgram(texture_program.GetProgram());
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, frame.cols, frame.rows, 0, GL_BGR, GL_UNSIGNED_BYTE, frame.ptr());
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glClearColor(0.f, 0.f, 0.f, 1.f);
+        glClearColor(0.2f, 0.2f, 0.2f, 1.f);
 
+        texture_program.SetVariable("view_proj", view_proj);
+        texture_program.SetVariable("transform", quad_transform.Data());
         renderQuad();
 
-        auto beg = std::chrono::system_clock::now();
-        frame = camera.GetFrame();
+//        glUseProgram(shader_program.GetProgram());
+//
+//        shader_program.SetVariable("view_proj", view_proj);
+//        shader_program.SetVariable("transform", teapot_transform.Data());
+//        shader_program.SetVariable("obj_color", teapot.GetColor());
+//        shader_program.SetVariable("camera_position", camera_pos);
+//        shader_program.SetVariable("light_intensity", light.GetIntensity());
+//        shader_program.SetVariable("light_position", light_transform.GetPosition());
+//
+//        teapot.Draw();
 
-        auto points = cc::utils::FindChessboardPoints(frame, board_size);
-        if (points)
-        {
-            frame = cc::utils::DrawChessboardPoints(frame, board_size, *points);
-//            auto vecs = cc::camera::GetTVMatrices(points, board_size);
-        }
         auto end = std::chrono::system_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::milliseconds>(end - beg).count();
 
         app.Render();
-//        std::cout << 1000 / time << " fps " << '\n';
+        std::cout << 1000 / time << " fps " << '\n';
     }
 
 	return 0;

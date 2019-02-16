@@ -49,6 +49,11 @@ namespace cc
             return cv::waitKey(30) != 27;
         }
 
+        cv::Mat Intrinsic() const { return intrinsic; }
+        cv::Mat DistortCoeffs() const { return distortion_coeffs; }
+        double Fov() const { return fov_vertical; }
+        double AspectRatio() const { return aspect_ratio; }
+
         cv::Mat GetFrame()
         {
             cv::Mat frame;
@@ -58,6 +63,6 @@ namespace cc
             return frame;
         }
 
-        std::pair<std::vector<cv::Mat>, std::vector<cv::Mat>> GetTVMatrices(const std::vector<cv::Point2f>& points, const cv::Size& board_size);
+        std::pair<cv::Mat, cv::Mat> GetTRMatrices(const std::vector<cv::Point2f>& points, const cv::Size& board_size);
     };
 }

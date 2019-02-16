@@ -7,6 +7,8 @@
 //
 
 #include "camera.hpp"
+#include <utils.hpp>
+
 #include <opencv2/opencv.hpp>
 #include <camera.hpp>
 #include <calibrator.hpp>
@@ -110,23 +112,16 @@ void cc::camera::SaveSettings(const std::string &path, const std::string &filena
     file << camera_params.dump(4) << '\n';
 }
 
-std::pair<std::vector<cv::Mat>, std::vector<cv::Mat>> cc::camera::GetTVMatrices(const std::vector<cv::Point2f>& points, const cv::Size& board_size)
+std::pair<cv::Mat, cv::Mat> cc::camera::GetTRMatrices(const std::vector<cv::Point2f>& points, const cv::Size& board_size)
 {
-    std::vector<cv::Mat> rvec;
-    std::vector<cv::Mat> tvec;
+    cv::Mat rvec;
+    cv::Mat tvec;
 
-    std::vector<cv::Point3f> object_points;
-    for (int i = 0; i < board_size.height; ++i)
-    {
-        for (int j = 0; j < board_size.width; ++j)
-        {
-            object_points.emplace_back(cv::Point3f(j, i, 0.f));
-        }
-    }
+    auto object_points = cc::utils::GetObjectPoints(board_size);
 
     if (cv::solvePnPRansac(object_points, points, intrinsic, distortion_coeffs, rvec, tvec))
     {
-        return {rvec, tvec};
+        return {tvec, rvec};
     }
     else
     {
